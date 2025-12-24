@@ -307,7 +307,7 @@ export default function GameStage() {
               overlay.width = videoWidth;
               overlay.height = videoHeight;
             }
-            drawSkeleton(points, ctx, 1);
+            drawSkeleton(points, ctx, 1, 1);
           } else {
             ctx.clearRect(0, 0, overlay.width, overlay.height);
           }
@@ -320,8 +320,9 @@ export default function GameStage() {
           const videoWidth = video?.videoWidth ?? 0;
           const videoHeight = video?.videoHeight ?? 0;
           if (videoWidth > 0 && videoHeight > 0) {
-            const scale = debugCanvas.width / videoWidth;
-            drawSkeleton(points, ctx, scale);
+            const scaleX = debugCanvas.width / videoWidth;
+            const scaleY = debugCanvas.height / videoHeight;
+            drawSkeleton(points, ctx, scaleX, scaleY);
           } else {
             ctx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
           }

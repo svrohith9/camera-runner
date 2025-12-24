@@ -106,15 +106,24 @@ ctx.onmessage = async (event: MessageEvent) => {
       flipHorizontal: true,
     });
     const keypoints = poses[0]?.keypoints ?? [];
+    const byName = new Map(
+      keypoints
+        .filter((point) => point.name)
+        .map((point) => [point.name as string, point])
+    );
+    const ordered = KEYPOINT_NAMES.map((name, index) => {
+      const match = byName.get(name) ?? keypoints[index];
+      return {
+        name,
+        x: match?.x ?? 0,
+        y: match?.y ?? 0,
+        score: match?.score ?? 0,
+      };
+    });
 
     ctx.postMessage({
       type: "POSES",
-      payload: keypoints.map((point, index) => ({
-        name: point.name ?? KEYPOINT_NAMES[index] ?? "",
-        x: point.x,
-        y: point.y,
-        score: point.score ?? 0,
-      })),
+      payload: ordered,
       timestamp: data.timestamp ?? performance.now(),
       ready: isReady,
     });

@@ -4,7 +4,8 @@ import { KEYPOINT_EDGES } from "./keypointEdges";
 export function drawSkeleton(
   keypoints: PoseKeypoint[],
   ctx: CanvasRenderingContext2D,
-  scale = 1
+  scaleX = 1,
+  scaleY = 1
 ): void {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.lineWidth = 2;
@@ -13,7 +14,7 @@ export function drawSkeleton(
       continue;
     }
     ctx.beginPath();
-    ctx.arc(point.x * scale, point.y * scale, 4, 0, Math.PI * 2);
+    ctx.arc(point.x * scaleX, point.y * scaleY, 4, 0, Math.PI * 2);
     ctx.fillStyle = `hsl(${point.score * 120}, 100%, 50%)`;
     ctx.fill();
   }
@@ -25,8 +26,8 @@ export function drawSkeleton(
       continue;
     }
     ctx.beginPath();
-    ctx.moveTo(startKp.x * scale, startKp.y * scale);
-    ctx.lineTo(endKp.x * scale, endKp.y * scale);
+    ctx.moveTo(startKp.x * scaleX, startKp.y * scaleY);
+    ctx.lineTo(endKp.x * scaleX, endKp.y * scaleY);
     const confidence = Math.min(startKp.score, endKp.score);
     ctx.strokeStyle = `hsl(${confidence * 120}, 100%, 50%)`;
     ctx.stroke();
