@@ -31,6 +31,17 @@ export function useCamera() {
         return null;
       }
 
+      const [videoTrack] = nextStream.getVideoTracks();
+      if (videoTrack) {
+        videoTrack.onended = () => {
+          if (!mountedRef.current) {
+            return;
+          }
+          setStatus("idle");
+          setStream(null);
+        };
+      }
+
       setStream(nextStream);
       setStatus("ready");
       return nextStream;

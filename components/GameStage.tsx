@@ -336,7 +336,7 @@ export default function GameStage() {
   }, [videoRef]);
 
   useEffect(() => {
-    if (!hasPose) {
+    if (!hasWrist) {
       return;
     }
 
@@ -344,7 +344,7 @@ export default function GameStage() {
     if (isPaused && pauseReason === "Camera lost") {
       setIsPaused(false);
     }
-  }, [hasPose, isPaused, pauseReason]);
+  }, [hasWrist, isPaused, pauseReason]);
 
   const emitParticles = useCallback(
     (originX: number, originY: number, burst = 12) => {

@@ -70,6 +70,8 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
   const workerRef = useRef<Worker | null>(null);
   const lastKeypointsRef = useRef<PoseKeypoint[] | null>(null);
   const lastSentRef = useRef(0);
+  const lastWorkerMessageRef = useRef(0);
+  const lastWorkerRestartRef = useRef(0);
   const frameCounterRef = useRef(0);
   const lastFpsUpdateRef = useRef(0);
   const inFlightRef = useRef(false);
@@ -98,6 +100,15 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
   }, [enabled, getCameraStream, isE2E]);
 
   useEffect(() => {
+    if (!enabled || isE2E) {
+      return;
+    }
+    if (cameraStatus === "idle" && !stream) {
+      void getCameraStream();
+    }
+  }, [cameraStatus, enabled, getCameraStream, isE2E, stream]);
+
+  useEffect(() => {
     if (!stream || !videoRef.current) {
       return;
     }
@@ -118,40 +129,83 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
       return;
     }
 
-    const worker = new Worker(new URL("../app/workers/pose.worker.ts", import.meta.url), {
-      type: "module",
-    });
-    workerRef.current = worker;
+    const createWorker = () => {
+      const worker = new Worker(
+        new URL("../app/workers/pose.worker.ts", import.meta.url),
+        {
+          type: "module",
+        }
+      );
+      workerRef.current = worker;
+      lastWorkerMessageRef.current = performance.now();
 
-    worker.onmessage = (event: MessageEvent<WorkerPoseMessage | WorkerErrorMessage>) => {
-      if (!mountedRef.current) {
+      worker.onmessage = (
+        event: MessageEvent<WorkerPoseMessage | WorkerErrorMessage>
+      ) => {
+        if (!mountedRef.current) {
+          return;
+        }
+        lastWorkerMessageRef.current = performance.now();
+        if (event.data.type === "POSES") {
+          if (!isModelReady) {
+            setIsModelReady(true);
+          }
+          const smoothed = smoothKeypoints(
+            lastKeypointsRef.current,
+            event.data.payload
+          );
+          lastKeypointsRef.current = smoothed;
+          setKeypoints(smoothed, event.data.timestamp);
+          setLocalKeypoints(smoothed);
+          setHasPose(smoothed.length > 0);
+        } else if (event.data.type === "ERROR") {
+          reportError(event.data.message);
+        }
+      };
+
+      worker.onerror = (event) => {
+        reportError(event.message);
+      };
+
+      return worker;
+    };
+
+    const worker = createWorker();
+
+    const watchdog = window.setInterval(() => {
+      if (!workerRef.current || cameraStatus !== "ready") {
         return;
       }
-      if (event.data.type === "POSES") {
-        if (!isModelReady) {
-          setIsModelReady(true);
+      const now = performance.now();
+      if (now - lastWorkerMessageRef.current > 2000) {
+        if (now - lastWorkerRestartRef.current < 1000) {
+          return;
         }
-        const smoothed = smoothKeypoints(lastKeypointsRef.current, event.data.payload);
-        lastKeypointsRef.current = smoothed;
-        setKeypoints(smoothed, event.data.timestamp);
-        setLocalKeypoints(smoothed);
-        setHasPose(smoothed.some((point) => point.score > 0.05));
-      } else if (event.data.type === "ERROR") {
-        reportError(event.data.message);
+        lastWorkerRestartRef.current = now;
+        workerRef.current?.terminate();
+        workerRef.current = null;
+        setIsModelReady(false);
+        console.warn("[GameError] Pose worker stalled. Restarting.");
+        createWorker();
       }
-    };
-
-    worker.onerror = (event) => {
-      reportError(event.message);
-    };
+    }, 500);
 
     return () => {
+      window.clearInterval(watchdog);
       worker.onmessage = null;
       worker.onerror = null;
       worker.terminate();
       workerRef.current = null;
     };
-  }, [enabled, isE2E, isModelReady, mountedRef, reportError, setKeypoints]);
+  }, [
+    cameraStatus,
+    enabled,
+    isE2E,
+    isModelReady,
+    mountedRef,
+    reportError,
+    setKeypoints,
+  ]);
 
   useEffect(() => {
     if (!enabled || isE2E) {
