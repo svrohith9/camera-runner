@@ -103,9 +103,11 @@ ctx.onmessage = async (event: MessageEvent) => {
 
     const activeDetector = await loadDetector();
     const input = offscreen as unknown as HTMLCanvasElement;
+    tfModule?.engine().startScope();
     const poses = await activeDetector.estimatePoses(input, {
       flipHorizontal: true,
     });
+    tfModule?.engine().endScope();
     const keypoints = poses[0]?.keypoints ?? [];
     const byName = new Map(
       keypoints

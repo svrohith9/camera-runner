@@ -72,6 +72,7 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
   const lastSentRef = useRef(0);
   const lastWorkerMessageRef = useRef(0);
   const lastWorkerRestartRef = useRef(0);
+  const workerStartRef = useRef(0);
   const frameCounterRef = useRef(0);
   const lastFpsUpdateRef = useRef(0);
   const inFlightRef = useRef(false);
@@ -137,7 +138,9 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
         }
       );
       workerRef.current = worker;
-      lastWorkerMessageRef.current = performance.now();
+      const now = performance.now();
+      lastWorkerMessageRef.current = now;
+      workerStartRef.current = now;
 
       worker.onmessage = (
         event: MessageEvent<WorkerPoseMessage | WorkerErrorMessage>
@@ -177,7 +180,10 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
         return;
       }
       const now = performance.now();
-      if (now - lastWorkerMessageRef.current > 2000) {
+      if (now - workerStartRef.current < 8000) {
+        return;
+      }
+      if (now - lastWorkerMessageRef.current > 3500) {
         if (now - lastWorkerRestartRef.current < 1000) {
           return;
         }
@@ -231,6 +237,7 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
       if (time - lastSentRef.current > 33 && !inFlightRef.current) {
         inFlightRef.current = true;
         lastSentRef.current = time;
+        lastWorkerMessageRef.current = time;
         createImageBitmap(video)
           .then((bitmap) => {
             worker.postMessage(
