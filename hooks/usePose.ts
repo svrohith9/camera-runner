@@ -75,6 +75,7 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
   const lastWorkerRestartRef = useRef(0);
   const workerStartRef = useRef(0);
   const noPoseFramesRef = useRef(0);
+  const frameIntervalRef = useRef(33);
   const frameCounterRef = useRef(0);
   const lastFpsUpdateRef = useRef(0);
   const inFlightRef = useRef(false);
@@ -166,22 +167,13 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
             setIsModelReady(true);
           }
           const score = event.data.maxScore ?? 0;
-          if (score < 0.2) {
+          if (score < 0.1) {
             noPoseFramesRef.current += 1;
             setHasPose(false);
-            setKeypoints([], event.data.timestamp);
-            setLocalKeypoints([]);
-            if (noPoseFramesRef.current > 120) {
-              console.warn("[GameError] No pose detected. Restarting worker.");
-              workerRef.current?.terminate();
-              workerRef.current = null;
-              setIsModelReady(false);
-              noPoseFramesRef.current = 0;
-              createWorker();
-            }
-            return;
+          } else {
+            noPoseFramesRef.current = 0;
+            setHasPose(true);
           }
-          noPoseFramesRef.current = 0;
           const smoothed = smoothKeypoints(
             lastKeypointsRef.current,
             event.data.payload
@@ -189,7 +181,6 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
           lastKeypointsRef.current = smoothed;
           setKeypoints(smoothed, event.data.timestamp);
           setLocalKeypoints(smoothed);
-          setHasPose(smoothed.length > 0);
         } else if (event.data.type === "ERROR") {
           reportError(event.data.message);
         }
@@ -263,7 +254,8 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
         return;
       }
 
-      if (time - lastSentRef.current > 33 && !inFlightRef.current) {
+      const interval = frameIntervalRef.current;
+      if (time - lastSentRef.current > interval && !inFlightRef.current) {
         inFlightRef.current = true;
         lastSentRef.current = time;
         lastWorkerMessageRef.current = time;
@@ -295,6 +287,7 @@ export function usePose(options: UsePoseOptions = {}): PoseResult {
         );
         setFps(nextFps);
         setFpsDiagnostic(nextFps);
+        frameIntervalRef.current = nextFps < 30 ? 66 : 33;
         frameCounterRef.current = 0;
         lastFpsUpdateRef.current = time;
       }

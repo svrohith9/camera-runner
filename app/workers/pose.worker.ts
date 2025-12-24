@@ -10,6 +10,8 @@ let tfModule: typeof import("@tensorflow/tfjs") | null = null;
 let isReady = false;
 let offscreen: OffscreenCanvas | null = null;
 let offscreenContext: OffscreenCanvasRenderingContext2D | null = null;
+const MODEL_WIDTH = 256;
+const MODEL_HEIGHT = 256;
 const KEYPOINT_NAMES = [
   "nose",
   "left_eye",
@@ -89,8 +91,8 @@ ctx.onmessage = async (event: MessageEvent) => {
       return;
     }
 
-    if (!offscreen || offscreen.width !== data.width || offscreen.height !== data.height) {
-      offscreen = new OffscreenCanvas(data.width, data.height);
+    if (!offscreen || offscreen.width !== MODEL_WIDTH || offscreen.height !== MODEL_HEIGHT) {
+      offscreen = new OffscreenCanvas(MODEL_WIDTH, MODEL_HEIGHT);
       offscreenContext = offscreen.getContext("2d", { willReadFrequently: true });
     }
 
@@ -99,7 +101,7 @@ ctx.onmessage = async (event: MessageEvent) => {
       return;
     }
 
-    offscreenContext.drawImage(data.bitmap, 0, 0, data.width, data.height);
+    offscreenContext.drawImage(data.bitmap, 0, 0, MODEL_WIDTH, MODEL_HEIGHT);
     data.bitmap.close();
 
     const activeDetector = await loadDetector();
