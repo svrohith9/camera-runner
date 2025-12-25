@@ -8,6 +8,8 @@ export type HudProps = {
   onToggleControls: () => void;
   gestureIndicator: "jump" | "flap" | null;
   jumpReady: boolean;
+  trackingOnly: boolean;
+  onToggleTracking: () => void;
 };
 
 export default function Hud({
@@ -16,6 +18,8 @@ export default function Hud({
   onToggleControls,
   gestureIndicator,
   jumpReady,
+  trackingOnly,
+  onToggleTracking,
 }: HudProps) {
   const score = useGameStore((state) => state.score);
   const combo = useGameStore((state) => state.combo);
@@ -43,6 +47,13 @@ export default function Hud({
           className="rounded-full border border-slate-600/50 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-300 hover:text-cyan-200"
         >
           {preferKeyboard ? "Keyboard" : "Camera"}
+        </button>
+
+        <button
+          onClick={onToggleTracking}
+          className="rounded-full border border-slate-600/50 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-300 hover:text-cyan-200"
+        >
+          {trackingOnly ? "Exit Tracking" : "Tracking Mode"}
         </button>
 
         <div className="flex items-center gap-3 rounded-full bg-glass px-4 py-2 text-xs text-slate-300">

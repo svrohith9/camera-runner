@@ -68,6 +68,7 @@ export default function GameStage() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [distance, setDistance] = useState(0);
   const [isCalibrating, setIsCalibrating] = useState(true);
+  const [trackingOnly, setTrackingOnly] = useState(false);
   const [hitFlash, setHitFlash] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -422,7 +423,7 @@ export default function GameStage() {
     useCallback(
       (dt, time) => {
         try {
-          if (isPaused || isGameOver || isCalibrating) {
+          if (isPaused || isGameOver || isCalibrating || trackingOnly) {
             return;
           }
 
@@ -648,7 +649,7 @@ export default function GameStage() {
         shoulderNormalizedY,
       ]
     ),
-    !isPaused && !isGameOver && !isCalibrating
+    !isPaused && !isGameOver && !isCalibrating && !trackingOnly
   );
 
   const handleCalibrationComplete = useCallback(
@@ -711,10 +712,12 @@ export default function GameStage() {
           <div className="absolute bottom-10 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" />
         </div>
 
-        <canvas
-          ref={particleCanvasRef}
-          className="pointer-events-none absolute inset-0"
-        />
+        {!trackingOnly && (
+          <canvas
+            ref={particleCanvasRef}
+            className="pointer-events-none absolute inset-0"
+          />
+        )}
 
         <canvas
           data-testid="skeleton-debug"
@@ -724,38 +727,62 @@ export default function GameStage() {
           className="pointer-events-none absolute left-6 top-6 z-20 rounded-lg border border-slate-700/60 bg-black/40"
         />
 
-        <Player y={playerY} squish={playerSquish} />
+        {!trackingOnly && <Player y={playerY} squish={playerSquish} />}
 
-        {obstacles
-          .filter((item) => item.active)
-          .map((item) => (
-            <Obstacle
-              key={item.id}
-              x={item.x}
-              y={item.y}
-              height={item.height}
-              variant={item.type}
-            />
-          ))}
+        {!trackingOnly &&
+          obstacles
+            .filter((item) => item.active)
+            .map((item) => (
+              <Obstacle
+                key={item.id}
+                x={item.x}
+                y={item.y}
+                height={item.height}
+                variant={item.type}
+              />
+            ))}
 
         <div
           className={
-            isCalibrating
-              ? "absolute left-1/2 top-1/2 z-20 h-[220px] w-[392px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-slate-600/50 bg-glass p-2"
-              : "absolute bottom-6 right-6 z-20 h-[108px] w-[192px] rounded-lg border border-slate-600/50 bg-slate-950/70 p-1"
+            trackingOnly
+              ? "absolute inset-0 z-20 bg-slate-950/80"
+              : isCalibrating
+                ? "absolute left-1/2 top-1/2 z-20 h-[220px] w-[392px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-slate-600/50 bg-glass p-2"
+                : "absolute bottom-6 right-6 z-20 h-[108px] w-[192px] rounded-lg border border-slate-600/50 bg-slate-950/70 p-1"
           }
         >
-          <video
-            ref={videoRef}
-            className="h-full w-full rounded-lg object-cover opacity-90"
-            autoPlay
-            playsInline
-            muted
-          />
-          <canvas
-            ref={overlayRef}
-            className="pointer-events-none absolute inset-0 h-full w-full opacity-30"
-          />
+          <div
+            className={
+              trackingOnly
+                ? "absolute inset-0 flex items-center justify-center"
+                : "relative h-full w-full"
+            }
+          >
+            <video
+              ref={videoRef}
+              className={
+                trackingOnly
+                  ? "h-full w-full object-cover"
+                  : "h-full w-full rounded-lg object-cover opacity-90"
+              }
+              autoPlay
+              playsInline
+              muted
+            />
+            <canvas
+              ref={overlayRef}
+              className={
+                trackingOnly
+                  ? "pointer-events-none absolute inset-0 h-full w-full opacity-40"
+                  : "pointer-events-none absolute inset-0 h-full w-full opacity-30"
+              }
+            />
+          </div>
+          {trackingOnly && (
+            <div className="absolute left-6 top-6 rounded-full bg-slate-950/70 px-4 py-2 text-xs uppercase tracking-[0.3em] text-cyan-200">
+              Tracking Mode
+            </div>
+          )}
         </div>
 
         <Hud
@@ -764,6 +791,8 @@ export default function GameStage() {
           onToggleControls={() => setPreferKeyboard(!preferKeyboard)}
           gestureIndicator={gestureIndicator}
           jumpReady={jumpReady}
+          trackingOnly={trackingOnly}
+          onToggleTracking={() => setTrackingOnly((value) => !value)}
         />
 
         <PauseModal
