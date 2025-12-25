@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   createGestureState,
+  createPumpState,
   updateGesture,
+  updatePumpState,
   type PoseThresholds,
 } from "../lib/gesture";
 
@@ -78,5 +80,47 @@ describe("updateGesture", () => {
     });
 
     expect(final.gesture).toBe("flap");
+  });
+});
+
+describe("updatePumpState", () => {
+  it("resets when no pose is available", () => {
+    const result = updatePumpState(createPumpState(0), {
+      leftWristY: 0,
+      rightWristY: 0,
+      hasPose: false,
+      hasWrists: false,
+      timestamp: 100,
+    });
+
+    expect(result.pumpActive).toBe(false);
+    expect(result.speedMultiplier).toBe(1);
+  });
+
+  it("activates pump when wrist velocity stays high", () => {
+    let state = createPumpState(0);
+    const frames = [
+      { t: 100, y: 0.2 },
+      { t: 200, y: 0.55 },
+      { t: 300, y: 0.15 },
+      { t: 400, y: 0.6 },
+      { t: 500, y: 0.2 },
+      { t: 600, y: 0.55 },
+    ];
+
+    let result = null as ReturnType<typeof updatePumpState> | null;
+    for (const frame of frames) {
+      result = updatePumpState(state, {
+        leftWristY: frame.y,
+        rightWristY: frame.y,
+        hasPose: true,
+        hasWrists: true,
+        timestamp: frame.t,
+      });
+      state = result.state;
+    }
+
+    expect(result?.pumpActive).toBe(true);
+    expect((result?.speedMultiplier ?? 1) > 1).toBe(true);
   });
 });

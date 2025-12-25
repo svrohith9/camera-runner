@@ -23,9 +23,9 @@ export function useCamera() {
       setStatus("loading");
       const nextStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          frameRate: { ideal: 30 },
+          width: { ideal: 320 },
+          height: { ideal: 240 },
+          frameRate: { ideal: 60, max: 60 },
         },
         audio: false,
       });

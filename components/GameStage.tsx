@@ -10,10 +10,12 @@ import Hud from "../app/game/Hud";
 import PauseModal from "../app/game/PauseModal";
 import GameOverModal from "../app/game/GameOverModal";
 import ErrorToast from "./ErrorToast";
+import PoseControlPanel from "./PoseControlPanel";
 import { usePose } from "../hooks/usePose";
 import { useGameLoop } from "../hooks/useGameLoop";
 import {
   createGestureState,
+  getGestureTuning,
   updateGesture,
   type GestureState,
 } from "../lib/gesture";
@@ -77,6 +79,9 @@ export default function GameStage() {
   const setCalibrationStats = usePoseStore(
     (state) => state.setCalibrationStats
   );
+  const useCamera = usePoseStore((state) => state.useCamera);
+  const setUseCamera = usePoseStore((state) => state.setUseCamera);
+  const gestureMode = usePoseStore((state) => state.gestureMode);
 
   const score = useGameStore((state) => state.score);
   const setScore = useGameStore((state) => state.setScore);
@@ -85,6 +90,11 @@ export default function GameStage() {
   const highScore = useGameStore((state) => state.highScore);
   const setHighScore = useGameStore((state) => state.setHighScore);
   const resetScore = useGameStore((state) => state.resetScore);
+  const lives = useGameStore((state) => state.lives);
+  const setLives = useGameStore((state) => state.setLives);
+  const resetLives = useGameStore((state) => state.resetLives);
+  const speedMultiplier = useGameStore((state) => state.speedMultiplier);
+  const setSpeedMultiplier = useGameStore((state) => state.setSpeedMultiplier);
   const preferKeyboard = useGameStore((state) => state.preferKeyboard);
   const setPreferKeyboard = useGameStore((state) => state.setPreferKeyboard);
 
@@ -163,16 +173,26 @@ export default function GameStage() {
     wristFilteredNormalizedY,
     wristNormalizedY,
     videoRef,
+    previewVideoRef,
+    previewCanvasRef,
+    pumpActive,
+    jumpActive,
+    pumpSpeedMultiplier,
   } = usePose({
     enabled: true,
     onError: (message) => setToast(message),
   });
 
-  const jumpReady =
-    !preferKeyboard &&
-    !!thresholds &&
-    wristFilteredNormalizedY > 0 &&
-    wristFilteredNormalizedY <= thresholds.jumpThreshold + 0.05;
+  const jumpReady = !preferKeyboard && jumpActive;
+  const status = isGameOver
+    ? "GameOver"
+    : isCalibrating
+      ? "Calibrating"
+      : isPaused
+        ? "Paused"
+        : trackingOnly
+          ? "Stopped"
+          : "Running";
 
   useEffect(() => {
     const stored = thresholds ?? loadThresholds();
@@ -225,6 +245,20 @@ export default function GameStage() {
       setToast("Camera unavailable. Keyboard controls enabled.");
     }
   }, [cameraStatus, setPreferKeyboard]);
+
+  useEffect(() => {
+    if (!useCamera && !preferKeyboard) {
+      setPreferKeyboard(true);
+    }
+  }, [preferKeyboard, setPreferKeyboard, useCamera]);
+
+  useEffect(() => {
+    if (!useCamera || preferKeyboard) {
+      setSpeedMultiplier(1);
+      return;
+    }
+    setSpeedMultiplier(pumpSpeedMultiplier);
+  }, [preferKeyboard, pumpSpeedMultiplier, setSpeedMultiplier, useCamera]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -401,6 +435,8 @@ export default function GameStage() {
     hitLockRef.current = false;
     gestureStateRef.current = createGestureState(performance.now());
     resetScore();
+    resetLives();
+    setSpeedMultiplier(1);
     setDistance(0);
     setIsGameOver(false);
     setHitFlash(false);
@@ -417,7 +453,7 @@ export default function GameStage() {
     for (const particle of particlePoolLocal) {
       particle.life = 0;
     }
-  }, [resetScore, worldX]);
+  }, [resetLives, resetScore, setSpeedMultiplier, worldX]);
 
   useGameLoop(
     useCallback(
@@ -444,7 +480,8 @@ export default function GameStage() {
           const slowMo = time < slowMoUntilRef.current;
           const effectiveDt = slowMo ? dt * 0.35 : dt;
 
-          worldX.set(worldX.get() + WORLD_SPEED * effectiveDt);
+          const currentSpeed = WORLD_SPEED * speedMultiplier;
+          worldX.set(worldX.get() + currentSpeed * effectiveDt);
           setDistance(Math.floor(worldX.get() / 80));
 
           const currentThresholds = thresholds;
@@ -468,9 +505,16 @@ export default function GameStage() {
               hasPose,
               hasWrist,
               timestamp: time,
+              tuning: getGestureTuning(gestureMode),
             });
             gestureStateRef.current = result.state;
-            gesture = result.gesture;
+            if (result.gesture === "flap") {
+              gesture = "flap";
+            }
+          }
+
+          if (!usingKeyboard && jumpActive) {
+            gesture = "jump";
           }
 
           if (gesture !== lastGestureRef.current) {
@@ -537,7 +581,7 @@ export default function GameStage() {
               continue;
             }
 
-            item.x -= WORLD_SPEED * effectiveDt;
+            item.x -= currentSpeed * effectiveDt;
             if (item.x < -80) {
               item.active = false;
               item.scored = false;
@@ -572,10 +616,19 @@ export default function GameStage() {
               hitLockRef.current = true;
               setHitFlash(true);
               slowMoUntilRef.current = time + 500;
-              setTimeout(() => {
-                setIsGameOver(true);
-                setHitFlash(false);
-              }, 520);
+              const nextLives = Math.max(0, lives - 1);
+              setLives(nextLives);
+              if (nextLives <= 0) {
+                setTimeout(() => {
+                  setIsGameOver(true);
+                  setHitFlash(false);
+                }, 520);
+              } else {
+                setTimeout(() => {
+                  setHitFlash(false);
+                  hitLockRef.current = false;
+                }, 520);
+              }
             }
           }
           setObstacles([...pool]);
@@ -632,6 +685,8 @@ export default function GameStage() {
         isGameOver,
         isPaused,
         cameraStatus,
+        jumpActive,
+        lives,
         preferKeyboard,
         playerSquish,
         playerY,
@@ -639,14 +694,17 @@ export default function GameStage() {
         score,
         setCombo,
         setHighScore,
+        setLives,
         setLastGesture,
         setScore,
         spawnObstacle,
+        speedMultiplier,
         thresholds,
         worldX,
         wristFiltered,
         wristFilteredNormalizedY,
         shoulderNormalizedY,
+        gestureMode,
       ]
     ),
     !isPaused && !isGameOver && !isCalibrating && !trackingOnly
@@ -700,10 +758,10 @@ export default function GameStage() {
   };
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden text-cyan-200">
+    <div className="flex min-h-screen w-screen flex-col text-cyan-200">
       <motion.div
         ref={stageRef}
-        className="relative h-full w-full"
+        className="relative h-screen w-screen overflow-hidden"
         style={{ translateX: shakeX }}
       >
         <ParallaxBg worldX={worldX} />
@@ -793,6 +851,7 @@ export default function GameStage() {
           jumpReady={jumpReady}
           trackingOnly={trackingOnly}
           onToggleTracking={() => setTrackingOnly((value) => !value)}
+          status={status}
         />
 
         <PauseModal
@@ -835,6 +894,15 @@ export default function GameStage() {
       </motion.div>
 
       <ErrorToast message={toast} />
+
+      <PoseControlPanel
+        useCamera={useCamera}
+        onToggleCamera={() => setUseCamera(!useCamera)}
+        pumpActive={pumpActive}
+        jumpActive={jumpActive}
+        previewVideoRef={previewVideoRef}
+        previewCanvasRef={previewCanvasRef}
+      />
     </div>
   );
 }
