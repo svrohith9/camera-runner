@@ -1,6 +1,3 @@
-# Camera Runner
-
-Cyber-minimal endless runner controlled by your laptop camera.
 
 ## Quick start
 
